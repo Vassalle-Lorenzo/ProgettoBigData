@@ -1,10 +1,6 @@
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
-import org.joda.time.DateTime
-
-
 
 object JsonParser {
 
@@ -12,17 +8,21 @@ object JsonParser {
   val sc = new SparkContext(conf)
   val sqlContext = new SQLContext(sc)
   val hiveContext = new HiveContext(sc)
-  val input = "D:\\BigData\\ProgettoBigData\\2018-03-01-0.json"
+  val input = "D:\\BigData\\ProgettoBigData\\Firs500Rows.json"
 
   import hiveContext.implicits._
-  def main(args: Array[String]) {
-    //data frame
+  def main(args: Array[String]){
+
+    //parso il file e lo visualizzo
     val df = sqlContext.read.json(input)
-    df.registerTempTable("miaTabella")
-
     val new_df = df.withColumnRenamed("public", "publicField")
-    new_df.show()
+    //creo dataSet
+    val ds_Event = new_df.as[Event]
+    //creo rdd
+    val rdd_event = ds_Event.rdd
+    rdd_event.take(10).foreach(println)
 
+    /*per vedere la stampa corretta
     //stampo l'intera tabella
     val data = sqlContext.sql("select * from miaTabella")
     data.show()
@@ -34,9 +34,13 @@ object JsonParser {
     data3.show()
     //contare gli actor
     val data4 = sqlContext.sql("select count(actor) from miaTabella")
-    data4.show()
-    //rdd
-    val eventRdd = df.as[Event].rdd
-    sc.stop()
+    data4.show()*/
+
+    /*
+    //conto numero event per ogni actor
+    val pairRdd = eventRdd.map(x => (x.actor, 1L))
+    val actorEvent = pairRdd.reduceByKey(_+_)
+    eventRdd.foreach(println)*/
+
   }
 }

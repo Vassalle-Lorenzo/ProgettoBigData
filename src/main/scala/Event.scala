@@ -1,8 +1,8 @@
 case class Event(actor: Actor,
                  created_at: String,
-                 id: BigInt,
+                 id: String,
                  org: String,
                  payload: Payload,
-                 public: Boolean,
+                 publicField: Boolean,
                  repo: String,
                  `type`: String)
