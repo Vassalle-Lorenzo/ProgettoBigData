@@ -1,5 +1,7 @@
+import java.sql.Date
+
 case class Event(actor: Actor,
-                 created_at: String,
+                 created_at: Date,
                  id: String,
                  org: String,
                  payload: Payload,

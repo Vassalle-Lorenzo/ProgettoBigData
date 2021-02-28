@@ -1,7 +1,9 @@
-import org.apache.spark.sql.functions.{col, explode}
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
+import org.joda.time.DateTime
+import java.util.Date
+
 
 object JsonParser {
 
@@ -21,8 +23,7 @@ object JsonParser {
     val ds_event = new_df_event.as[Event]
     //creo rdd
     val rdd_event = ds_event.rdd
-
-
+    /*
     //TODO:1.1)trovare i singoli actor
     //DF
     val df_actor = new_df_event.select("actor").distinct()
@@ -82,18 +83,41 @@ object JsonParser {
     val rdd_a = rdd_event.map(x => x.actor).count()
     println(rdd_a)
 
-    //TODO: 2.2)contare il numero di event divisi
+    //TODO: 2.2)contare il numero di event divisi per type e actor                                         da far vedere al prof
+    //DF
+    val df_ev = new_df_event.select(col("type"), col("actor"), count($"*").over(Window.partitionBy("type", "actor")) as "nEvent")
+    df_ev.show()
+    //RDD
+    val rdd_e = rdd_event.map(x => ((x.`type`, x.actor), 1L)).reduceByKey((e1,e2) => e1+e2)
+    rdd_e.take(10).foreach(println)
 
+    //TODO: 2.3)contare il numero di event divisi per type, actor e repo                                    da far vedere al prof
+    //DF
+    val df_eve = new_df_event.select(col("type"), col("actor"), col("repo"), count($"*").over(Window.partitionBy(col("type"), col("actor"), col("repo"))) as "nEvent")
+    df_eve.show()
+    //RDD
+    val rdd_ev = rdd_event.map(x => ((x.`type`, x.actor, x.repo), 1L)).reduceByKey((e1,e2) => e1+e2)
+    rdd_ev.take(10).foreach(println)
+*/
+    //TODO: 2.4)contare gli event divisi per type, actor, repo e secondo trasformare timestamp per avere solo il secondo valore, raggruppa su quest'ultimo     x prof
+    //DF
+    //RDD
+    //val rdd_even = rdd_event.map(x=> (x.`type`, x.actor, x.repo, new DateTime(x.created_at.getTime).getSecondOfMinute, 1L)).toString().reduceByKey((contatore1, contatore2) => contatore1 + contatore2)
+    //rdd_even.take(10).foreach(println)
 
+        //TODO: 2.5)trova max e min numero di event per secondo
+        //DF
+        //RDD
 
-    //TODO:esempio prof
-    /*//nPagine per ogni autore
-    val paginePerAutore = libriRDD.map(x => (x.autore, x.pagine))
-    val reduce = paginePerAutore.reduceByKey((p1,p2) => p1+p2)*/
+/*
+        //TODO:esempio prof
+        /*//nPagine per ogni autore
+        val paginePerAutore = libriRDD.map(x => (x.autore, x.pagine))
+        val reduce = paginePerAutore.reduceByKey((p1,p2) => p1+p2)*/
 
-    /*per vedere la stampa corretta
-    //stampo l'intera tabella
-    val data = sqlContext.sql("select * from miaTabella")
-    data.show()*/
+        //per vedere la stampa corretta
+        //stampo l'intera tabella
+        val data = sqlContext.sql("select * from miaTabella")
+        data.show()*/
   }
 }
