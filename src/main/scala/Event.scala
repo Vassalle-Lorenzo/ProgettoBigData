@@ -1,7 +1,7 @@
 import java.sql.Date
 
 case class Event(actor: Actor,
-                 created_at: Date,
+                 created_at: java.sql.Timestamp,
                  id: String,
                  org: String,
                  payload: Payload,

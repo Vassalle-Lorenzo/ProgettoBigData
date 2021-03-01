@@ -1,8 +1,13 @@
+import org.apache.spark.sql.catalyst.ScalaReflection.universe.show
+import org.apache.spark.sql.expressions.Window
+import org.apache.spark.sql.functions.{col, count, second}
 import org.apache.spark.sql.{Row, SQLContext}
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
 import org.joda.time.DateTime
+
 import java.util.Date
+import scala.tools.scalap.scalax.rules.scalasig.ScalaSigEntryParsers.entryType
 
 
 object JsonParser {
@@ -36,7 +41,7 @@ object JsonParser {
     ////DF = cambio da event a commit
     val payload_df = df_event.select("payload.*")
     val commits_df = payload_df.select(explode(col("commits"))).select("col.*")
-    val author_df = commits_df.select("author")
+    val author_df = commits_df.select("author").distinct()
     author_df.show()
     //RDD
     val rdd_commit = commits_df.as[Commit].rdd
@@ -85,7 +90,7 @@ object JsonParser {
 
     //TODO: 2.2)contare il numero di event divisi per type e actor                                         da far vedere al prof
     //DF
-    val df_ev = new_df_event.select(col("type"), col("actor"), count($"*").over(Window.partitionBy("type", "actor")) as "nEvent")
+    val df_ev = new_df_event.select(($"type"), ($"actor"), count($"*").over(Window.partitionBy("type", "actor")) as "nEvent")
     df_ev.show()
     //RDD
     val rdd_e = rdd_event.map(x => ((x.`type`, x.actor), 1L)).reduceByKey((e1,e2) => e1+e2)
@@ -93,21 +98,26 @@ object JsonParser {
 
     //TODO: 2.3)contare il numero di event divisi per type, actor e repo                                    da far vedere al prof
     //DF
-    val df_eve = new_df_event.select(col("type"), col("actor"), col("repo"), count($"*").over(Window.partitionBy(col("type"), col("actor"), col("repo"))) as "nEvent")
+    val df_eve = new_df_event.select($"type", $"actor", $"repo", count($"*").over(Window.partitionBy($"type", $"actor", $"repo")) as "nEvent")
     df_eve.show()
     //RDD
     val rdd_ev = rdd_event.map(x => ((x.`type`, x.actor, x.repo), 1L)).reduceByKey((e1,e2) => e1+e2)
     rdd_ev.take(10).foreach(println)
-*/
+
     //TODO: 2.4)contare gli event divisi per type, actor, repo e secondo trasformare timestamp per avere solo il secondo valore, raggruppa su quest'ultimo     x prof
     //DF
+    val df_date = new_df_event.withColumn("second", second($"created_at"))
+    val df_even = df_date.select($"type", $"actor", $"repo", $"second", count($"*").over(Window.partitionBy($"type", $"actor", $"repo", $"second")) as "nEvent")
+    df_even.show()
     //RDD
-    //val rdd_even = rdd_event.map(x=> (x.`type`, x.actor, x.repo, new DateTime(x.created_at.getTime).getSecondOfMinute, 1L)).toString().reduceByKey((contatore1, contatore2) => contatore1 + contatore2)
-    //rdd_even.take(10).foreach(println)
+    val rdd_even = rdd_event.map(x=> ((x.`type`, x.actor, x.repo, new DateTime(x.created_at.getTime).getSecondOfMinute), 1L)).reduceByKey((contatore1, contatore2) => contatore1 + contatore2)
+    rdd_even.take(10).foreach(println)
+*/
+    //TODO: 2.5)trova max e min numero di event per secondo
+    //DF
 
-        //TODO: 2.5)trova max e min numero di event per secondo
-        //DF
-        //RDD
+    //RDD
+
 
 /*
         //TODO:esempio prof
