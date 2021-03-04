@@ -1,7 +1,7 @@
 import org.apache.spark.sql.catalyst.ScalaReflection.universe.show
 import org.apache.spark.sql.expressions.Window
-import org.apache.spark.sql.functions.{col, count, explode, max, min, second}
-import org.apache.spark.sql.{Row, SQLContext}
+import org.apache.spark.sql.functions.{col, count, explode, max, min, second, sum}
+import org.apache.spark.sql.{Row, SQLContext, functions}
 import org.apache.spark.sql.hive.HiveContext
 import org.apache.spark.{SparkConf, SparkContext}
 import org.joda.time.DateTime
@@ -9,6 +9,10 @@ import org.joda.time.DateTime
 import java.util.Date
 import scala.math.Ordering.{Tuple2, comparatorToOrdering}
 import scala.tools.scalap.scalax.rules.scalasig.ScalaSigEntryParsers.entryType
+
+
+//TODO: 1. sta per la slide dell'esercizio(1.=13  2.=14  ecc.)
+//TODO: .1 sta per il numero dell'esercizio(.1=primo esercizio  .2=secondo esercizio  ecc.)
 
 
 object JsonParser {
@@ -83,163 +87,179 @@ object JsonParser {
 
     //TODO:2.1)contare numero event per ogni actor
     //DF
-    val df_nEvent = new_df_event.select("actor").count()
-    println(df_nEvent)
+    val df_nEvent = new_df_event.groupBy("actor").count()
+    df_nEvent.show()
     //RDD
-    val rdd_a = rdd_event.map(x => x.actor).count()
-    println(rdd_a)
+    /*val rdd_act = rdd_event.map(x => (x.actor, 1L))reduceByKey((count1, count2) => count1 + count2)  //TODO: dà un errore stranissimo
+    rdd_act.take(10).foreach(println)*/
 
-    //TODO: 2.2)contare il numero di event divisi per type e actor
-    //DF
-    val df_ev = new_df_event.select(($"type"), ($"actor"), count($"*").over(Window.partitionBy("type", "actor")) as "nEvent")
-    df_ev.show()
-    //RDD
-    val rdd_e = rdd_event.map(x => ((x.`type`, x.actor), 1L)).reduceByKey((e1,e2) => e1+e2)
-    rdd_e.take(10).foreach(println)
+        //TODO: 2.2)contare il numero di event divisi per type e actor
+        //DF
+        val df_ev = new_df_event.select(($"type"), ($"actor"), count($"*").over(Window.partitionBy("type", "actor")) as "nEvent")
+        df_ev.show()
+        //RDD
+        val rdd_e = rdd_event.map(x => ((x.`type`, x.actor), 1L)).reduceByKey((e1,e2) => e1+e2)
+        rdd_e.take(10).foreach(println)
 
-    //TODO: 2.3)contare il numero di event divisi per type, actor e repo
-    //DF
-    val df_eve = new_df_event.select($"type", $"actor", $"repo", count($"*").over(Window.partitionBy($"type", $"actor", $"repo")) as "nEvent")
-    df_eve.show()
-    //RDD
-    val rdd_ev = rdd_event.map(x => ((x.`type`, x.actor, x.repo), 1L)).reduceByKey((e1,e2) => e1+e2)
-    rdd_ev.take(10).foreach(println)
+        //TODO: 2.3)contare il numero di event divisi per type, actor e repo
+        //DF
+        val df_eve = new_df_event.select($"type", $"actor", $"repo", count($"*").over(Window.partitionBy($"type", $"actor", $"repo")) as "nEvent")
+        df_eve.show()
+        //RDD
+        val rdd_ev = rdd_event.map(x => ((x.`type`, x.actor, x.repo), 1L)).reduceByKey((e1,e2) => e1+e2)
+        rdd_ev.take(10).foreach(println)
 
-    //TODO: 2.4)contare gli event divisi per type, actor, repo e secondo trasformare timestamp per avere solo il secondo valore, raggruppa su quest'ultimo
-    //DF
-    val df_date = new_df_event.withColumn("second", second($"created_at"))
-    val df_even = df_date.select($"type", $"actor", $"repo", $"second", count($"*").over(Window.partitionBy($"type", $"actor", $"repo", $"second")) as "nEvent")
-    df_even.show()
-    //RDD
-    val rdd_even = rdd_event.map(x=> ((x.`type`, x.actor, x.repo, new DateTime(x.created_at.getTime).getSecondOfMinute), 1L)).reduceByKey((contatore1, contatore2) => contatore1 + contatore2)
-    rdd_even.take(10).foreach(println)
+        //TODO: 2.4)contare gli event divisi per type, actor, repo e secondo trasformare timestamp per avere solo il secondo valore, raggruppa su quest'ultimo
+        //DF
+        val df_date = new_df_event.withColumn("second", second($"created_at"))
+        val df_even = df_date.select($"type", $"actor", $"repo", $"second", count($"*").over(Window.partitionBy($"type", $"actor", $"repo", $"second")) as "nEvent")
+        df_even.show()
+        //RDD
+        val rdd_even = rdd_event.map(x=> ((x.`type`, x.actor, x.repo, new DateTime(x.created_at.getTime).getSecondOfMinute), 1L)).reduceByKey((contatore1, contatore2) => contatore1 + contatore2)
+        rdd_even.take(10).foreach(println)
 
-    //TODO: 2.5)trova max e min numero di event per secondo
-    //DF_max
-    val df_date_max = new_df_event.withColumn("second", second($"created_at"))
-    val df_ev_max = df_date_max.select($"second", count($"*").over(Window.partitionBy($"second")) as "conteggio")
-    val df_max_ev = df_ev_max.agg(max("conteggio"))
-    df_max_ev.show()
-    //RDD_max
-    val rdd_max_date = rdd_event.map(x=> (new DateTime(x.created_at.getTime).getSecondOfMinute, 1L)).reduceByKey((contatore1, contatore2) => contatore1 + contatore2)
-    val rdd_max_da = rdd_max_date.map(x => x._2).max()
-    println(rdd_max_da)
-    //DF_min
-    val df_date_min = new_df_event.withColumn("second", second($"created_at"))
-    val df_ev_min = df_date_min.select($"second", count($"*").over(Window.partitionBy($"second")) as "conteggio")
-    val df_min_ev = df_ev_min.agg(min("conteggio"))
-    df_min_ev.show()
-    //RDD_min
-    val rdd_min_date = rdd_event.map(x=> (new DateTime(x.created_at.getTime).getSecondOfMinute, 1L)).reduceByKey((contatore1, contatore2) => contatore1 + contatore2)
-    val rdd_min_da = rdd_min_date.map(x => x._2).min()
-    println(rdd_min_da)
+        //TODO: 2.5)trova max e min numero di event per secondo
+        //DF_max
+        val df_date_max = new_df_event.withColumn("second", second($"created_at"))
+        val df_ev_max = df_date_max.select($"second", count($"*").over(Window.partitionBy($"second")) as "conteggio")
+        val df_max_ev = df_ev_max.agg(max("conteggio"))
+        df_max_ev.show()
+        //RDD_max
+        val rdd_max_date = rdd_event.map(x=> (new DateTime(x.created_at.getTime).getSecondOfMinute, 1L)).reduceByKey((contatore1, contatore2) => contatore1 + contatore2)
+        val rdd_max_da = rdd_max_date.map(x => x._2).max()
+        println(rdd_max_da)
+        //DF_min
+        val df_date_min = new_df_event.withColumn("second", second($"created_at"))
+        val df_ev_min = df_date_min.select($"second", count($"*").over(Window.partitionBy($"second")) as "conteggio")
+        val df_min_ev = df_ev_min.agg(min("conteggio"))
+        df_min_ev.show()
+        //RDD_min
+        val rdd_min_date = rdd_event.map(x=> (new DateTime(x.created_at.getTime).getSecondOfMinute, 1L)).reduceByKey((contatore1, contatore2) => contatore1 + contatore2)
+        val rdd_min_da = rdd_min_date.map(x => x._2).min()
+        println(rdd_min_da)
 
-    //TODO: 2.6)trova max e min numero di event per actor
-    //DF_max
-    val data_frame_max_actor = new_df_event.select($"actor", count($"*").over(Window.partitionBy($"actor")) as "conteggio")
-    val df_max_actor = data_frame_max_actor.agg(max("conteggio"))
-    df_max_actor.show()
-    //RDD_max
-    val rdd_max_actor = rdd_event.map(x => (x.actor.id, x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
-    val rdd_max_a = rdd_max_actor.map(x => x._2).max()
-    println(rdd_max_a)
-    //DF_min
-    val data_frame_min_actor = new_df_event.select($"actor", count($"*").over(Window.partitionBy($"actor")) as "conteggio")
-    val df_min_actor = data_frame_min_actor.agg(min("conteggio"))
-    df_min_actor.show()
-    //RDD_min
-    val rdd_min_actor = rdd_event.map(x => (x.actor.id, x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
-    val rdd_min_a = rdd_min_actor.map(x => x._2).min()
-    println(rdd_min_a)
+        //TODO: 2.6)trova max e min numero di event per actor
+        //DF_max
+        val data_frame_max_actor = new_df_event.select($"actor", count($"*").over(Window.partitionBy($"actor")) as "conteggio")
+        val df_max_actor = data_frame_max_actor.agg(max("conteggio"))
+        df_max_actor.show()
+        //RDD_max
+        val rdd_max_actor = rdd_event.map(x => (x.actor.id, x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
+        val rdd_max_a = rdd_max_actor.map(x => x._2).max()
+        println(rdd_max_a)
+        //DF_min
+        val data_frame_min_actor = new_df_event.select($"actor", count($"*").over(Window.partitionBy($"actor")) as "conteggio")
+        val df_min_actor = data_frame_min_actor.agg(min("conteggio"))
+        df_min_actor.show()
+        //RDD_min
+        val rdd_min_actor = rdd_event.map(x => (x.actor.id, x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
+        val rdd_min_a = rdd_min_actor.map(x => x._2).min()
+        println(rdd_min_a)
 
-    //TODO: 2.7)trova max e min numero di event per repo
-    //DF_max
-    val data_frame_max_repo = new_df_event.select($"repo", count($"*").over(Window.partitionBy($"repo")) as "conteggio")
-    val df_max_repo = data_frame_max_repo.agg(max("conteggio"))
-    df_max_repo.show()
-    //RDD_max
-    val rdd_max_repo = rdd_event.map(x => (x.repo, x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
-    val rdd_max_r = rdd_max_repo.map(x => x._2).max()
-    println(rdd_max_r)
-    //DF_min
-    val data_frame_min_repo = new_df_event.select($"repo", count($"*").over(Window.partitionBy($"repo")) as "conteggio")
-    val df_min_repo = data_frame_min_repo.agg(min("conteggio"))
-    df_min_repo.show()
-    //RDD_min
-    val rdd_min_repo = rdd_event.map(x => (x.actor.id, x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
-    val rdd_min_r = rdd_min_repo.map(x => x._2).min()
-    println(rdd_min_r)
+        //TODO: 2.7)trova max e min numero di event per repo
+        //DF_max
+        val data_frame_max_repo = new_df_event.select($"repo", count($"*").over(Window.partitionBy($"repo")) as "conteggio")
+        val df_max_repo = data_frame_max_repo.agg(max("conteggio"))
+        df_max_repo.show()
+        //RDD_max
+        val rdd_max_repo = rdd_event.map(x => (x.repo, x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
+        val rdd_max_r = rdd_max_repo.map(x => x._2).max()
+        println(rdd_max_r)
+        //DF_min
+        val data_frame_min_repo = new_df_event.select($"repo", count($"*").over(Window.partitionBy($"repo")) as "conteggio")
+        val df_min_repo = data_frame_min_repo.agg(min("conteggio"))
+        df_min_repo.show()
+        //RDD_min
+        val rdd_min_repo = rdd_event.map(x => (x.actor.id, x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
+        val rdd_min_r = rdd_min_repo.map(x => x._2).min()
+        println(rdd_min_r)
 
-    //TODO: 2.8)trova max e min numero di event per secondo per actor
-    //DF_max
-    val df_mx_aS = new_df_event.withColumn( "second", second($"created_at"))
-    val data_frame_max_actorS = df_mx_aS.select( $"second", $"actor", count($"*").over(Window.partitionBy( $"second", $"actor")) as "conteggio")
-    val df_max_actorS = data_frame_max_actorS.agg(max("conteggio"))
-    df_max_actorS.show()
-    //RDD_max
-    val rdd_max_actorS = rdd_event.map(x => ((new DateTime(x.created_at.getTime).getSecondOfMinute, x.actor.id), x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
-    val rdd_max_aS = rdd_max_actorS.map(x => x._2).max()
-    println(rdd_max_aS)
-    //DF_min
-    val df_mn_aS = new_df_event.withColumn( "second", second($"created_at"))
-    val data_frame_min_actorS = df_mn_aS.select( $"second", $"actor", count($"*").over(Window.partitionBy( $"second", $"actor")) as "conteggio")
-    val df_min_actorS = data_frame_min_actorS.agg(min("conteggio"))
-    df_min_actorS.show()
-    //RDD_min
-    val rdd_min_actorS = rdd_event.map(x => ((new DateTime(x.created_at.getTime).getSecondOfMinute, x.actor.id), x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
-    val rdd_min_aS = rdd_min_actorS.map(x => x._2).min()
-    println(rdd_min_aS)
+        //TODO: 2.8)trova max e min numero di event per secondo per actor
+        //DF_max
+        val df_mx_aS = new_df_event.withColumn( "second", second($"created_at"))
+        val data_frame_max_actorS = df_mx_aS.select( $"second", $"actor", count($"*").over(Window.partitionBy( $"second", $"actor")) as "conteggio")
+        val df_max_actorS = data_frame_max_actorS.agg(max("conteggio"))
+        df_max_actorS.show()
+        //RDD_max
+        val rdd_max_actorS = rdd_event.map(x => ((new DateTime(x.created_at.getTime).getSecondOfMinute, x.actor.id), x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
+        val rdd_max_aS = rdd_max_actorS.map(x => x._2).max()
+        println(rdd_max_aS)
+        //DF_min
+        val df_mn_aS = new_df_event.withColumn( "second", second($"created_at"))
+        val data_frame_min_actorS = df_mn_aS.select( $"second", $"actor", count($"*").over(Window.partitionBy( $"second", $"actor")) as "conteggio")
+        val df_min_actorS = data_frame_min_actorS.agg(min("conteggio"))
+        df_min_actorS.show()
+        //RDD_min
+        val rdd_min_actorS = rdd_event.map(x => ((new DateTime(x.created_at.getTime).getSecondOfMinute, x.actor.id), x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
+        val rdd_min_aS = rdd_min_actorS.map(x => x._2).min()
+        println(rdd_min_aS)
 
-    //TODO: 2.9)trova max e min numero di event per secondo per repo
-    //DF_max
-    val df_mx_rS = new_df_event.withColumn( "second", second($"created_at"))
-    val data_frame_max_repoS = df_mx_rS.select( $"second", $"repo", count($"*").over(Window.partitionBy( $"second", $"repo")) as "conteggio")
-    val df_max_repoS = data_frame_max_repoS.agg(max("conteggio"))
-    df_max_repoS.show()
-    //RDD_max
-    val rdd_max_repoS = rdd_event.map(x => ((new DateTime(x.created_at.getTime).getSecondOfMinute, x.repo), x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
-    val rdd_max_rS = rdd_max_repoS.map(x => x._2).max()
-    println(rdd_max_rS)
-    //DF_min
-    val df_mn_rS = new_df_event.withColumn( "second", second($"created_at"))
-    val data_frame_min_repoS = df_mn_rS.select( $"second", $"repo", count($"*").over(Window.partitionBy( $"second", $"repo")) as "conteggio")
-    val df_min_repoS = data_frame_min_repoS.agg(min("conteggio"))
-    df_min_repoS.show()
-    //RDD_min
-    val rdd_min_repoS = rdd_event.map(x => ((new DateTime(x.created_at.getTime).getSecondOfMinute, x.repo), x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
-    val rdd_min_rS = rdd_min_repoS.map(x => x._2).min()
-    println(rdd_min_rS)
+        //TODO: 2.9)trova max e min numero di event per secondo per repo
+        //DF_max
+        val df_mx_rS = new_df_event.withColumn( "second", second($"created_at"))
+        val data_frame_max_repoS = df_mx_rS.select( $"second", $"repo", count($"*").over(Window.partitionBy( $"second", $"repo")) as "conteggio")
+        val df_max_repoS = data_frame_max_repoS.agg(max("conteggio"))
+        df_max_repoS.show()
+        //RDD_max
+        val rdd_max_repoS = rdd_event.map(x => ((new DateTime(x.created_at.getTime).getSecondOfMinute, x.repo), x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
+        val rdd_max_rS = rdd_max_repoS.map(x => x._2).max()
+        println(rdd_max_rS)
+        //DF_min
+        val df_mn_rS = new_df_event.withColumn( "second", second($"created_at"))
+        val data_frame_min_repoS = df_mn_rS.select( $"second", $"repo", count($"*").over(Window.partitionBy( $"second", $"repo")) as "conteggio")
+        val df_min_repoS = data_frame_min_repoS.agg(min("conteggio"))
+        df_min_repoS.show()
+        //RDD_min
+        val rdd_min_repoS = rdd_event.map(x => ((new DateTime(x.created_at.getTime).getSecondOfMinute, x.repo), x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
+        val rdd_min_rS = rdd_min_repoS.map(x => x._2).min()
+        println(rdd_min_rS)
 
-    //TODO: 2.10)trova max e min numero di event per secondo per repo e actor
-    //DF_max
-    val df_mx_raS = new_df_event.withColumn( "second", second($"created_at"))
-    val data_frame_max_repoactorS = df_mx_raS.select( $"second", $"repo", $"actor", count($"*").over(Window.partitionBy( $"second", $"repo", $"actor")) as "conteggio")
-    val df_max_repoactorS = data_frame_max_repoactorS.agg(max("conteggio"))
-    df_max_repoactorS.show()
-    //RDD_max
-    val rdd_max_repoactorS = rdd_event.map(x => ((new DateTime(x.created_at.getTime).getSecondOfMinute, x.repo, x.actor.id), x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
-    val rdd_max_raS = rdd_max_repoactorS.map(x => x._2).max()
-    println(rdd_max_raS)
-    //DF_min
-    val df_mn_raS = new_df_event.withColumn( "second", second($"created_at"))
-    val data_frame_min_repoactorS = df_mn_raS.select( $"second", $"repo", $"actor", count($"*").over(Window.partitionBy( $"second", $"repo", $"actor")) as "conteggio")
-    val df_min_repoactorS = data_frame_min_repoactorS.agg(min("conteggio"))
-    df_min_repoactorS.show()
-    //RDD_min
-    val rdd_min_repoactorS = rdd_event.map(x => ((new DateTime(x.created_at.getTime).getSecondOfMinute, x.repo, x.actor.id), x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
-    val rdd_min_raS = rdd_min_repoactorS.map(x => x._2).min()
-    println(rdd_min_raS)
+        //TODO: 2.10)trova max e min numero di event per secondo per repo e actor
+        //DF_max
+        val df_mx_raS = new_df_event.withColumn( "second", second($"created_at"))
+        val data_frame_max_repoactorS = df_mx_raS.select( $"second", $"repo", $"actor", count($"*").over(Window.partitionBy( $"second", $"repo", $"actor")) as "conteggio")
+        val df_max_repoactorS = data_frame_max_repoactorS.agg(max("conteggio"))
+        df_max_repoactorS.show()
+        //RDD_max
+        val rdd_max_repoactorS = rdd_event.map(x => ((new DateTime(x.created_at.getTime).getSecondOfMinute, x.repo, x.actor.id), x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
+        val rdd_max_raS = rdd_max_repoactorS.map(x => x._2).max()
+        println(rdd_max_raS)
+        //DF_min
+        val df_mn_raS = new_df_event.withColumn( "second", second($"created_at"))
+        val data_frame_min_repoactorS = df_mn_raS.select( $"second", $"repo", $"actor", count($"*").over(Window.partitionBy( $"second", $"repo", $"actor")) as "conteggio")
+        val df_min_repoactorS = data_frame_min_repoactorS.agg(min("conteggio"))
+        df_min_repoactorS.show()
+        //RDD_min
+        val rdd_min_repoactorS = rdd_event.map(x => ((new DateTime(x.created_at.getTime).getSecondOfMinute, x.repo, x.actor.id), x)).aggregateByKey(0)((contatore, actor) => contatore + 1, (contatore1, contatore2) => contatore1 + contatore2)
+        val rdd_min_raS = rdd_min_repoactorS.map(x => x._2).min()
+        println(rdd_min_raS)
 
-    //TODO: 3.1)contare il numero di commit
-    //DF
-    val df_nComit = commits_df.distinct().count()
-    println(df_nComit)
-    //RDD
-    val rdd_nCommit = rdd_commit.distinct().count()
-    println(rdd_nCommit)
+        //TODO: 3.1)contare il numero di commit
+        //DF
+        val df_nComit = commits_df.distinct().count()
+        println(df_nComit)
+        //RDD
+        val rdd_nCommit = rdd_commit.distinct().count()
+        println(rdd_nCommit)
 
-    //TODO: 3.2)contare il numero di commit per actor
+        //TODO: 3.2)contare il numero di commit per actor
+        //DF
+        val df_nComit_xActor = payload_df.select(explode(col("commits"))).select("col.*").crossJoin(df_event)
+        val df_ris = df_nComit_xActor.select(col("actor"), count($"*").over(Window.partitionBy("actor")) as "conteggio")
+        df_ris.show()
+        //RDD
+        //val rdd_nCommit = rdd_commit.distinct().count()
+        //println(rdd_nCommit)
 
+        //TODO: 3.3)contare il numero di commit divisi per type e actor
+        //DF
+        val df_n_t_a = new_df_event.select("*").withColumn("commitSize", functions.size(col("payload.commits"))).groupBy("type", "actor").agg(sum("commitSize").as("totSizeCommit"))
+        df_n_t_a.show()
+
+        //TODO: 4.2)contare il numero di actor divisi per type e secondo
+        //DF
+        val df_tS = new_df_event.withColumn("seconds", second(col("created_at"))).groupBy("type", "seconds", "actor").count()
+        df_tS.show()
 
   }
 }
