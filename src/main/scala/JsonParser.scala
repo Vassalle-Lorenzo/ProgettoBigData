@@ -29,7 +29,7 @@ object JsonParser {
     val ds_event = new_df_event.as[Event]
     //creo rdd
     val rdd_event = ds_event.rdd
-/*
+
     //TODO:1.1)trovare i singoli actor
     //DF
     val df_actor = new_df_event.select("actor").distinct()
@@ -37,7 +37,7 @@ object JsonParser {
     //RDD
     val rdd_actor = rdd_event.map(x => x.actor).distinct()
     rdd_actor.take(10).foreach(println)
-*/
+
     //TODO:1.2)trovare i singoli author dentro commit
     //DF = cambio da event a commit
     val payload_df = df_event.select("payload.*")
@@ -48,7 +48,7 @@ object JsonParser {
     val rdd_commit = commits_df.as[Commit].rdd
     val rdd_author = rdd_commit.map(x => x.author).distinct()
     rdd_author.take(10).foreach(println)
-/*
+
     //TODO:1.3)trovare i singoli repo
     //DF
     val df_repo = new_df_event.select("repo").distinct()
@@ -237,17 +237,9 @@ object JsonParser {
     //RDD
     val rdd_nCommit = rdd_commit.distinct().count()
     println(rdd_nCommit)
- */
-    //TODO: 3.2)contare il numero di commit per actor
-/*
-        //TODO:esempio prof
-        /*//nPagine per ogni autore
-        val paginePerAutore = libriRDD.map(x => (x.autore, x.pagine))
-        val reduce = paginePerAutore.reduceByKey((p1,p2) => p1+p2)*/
 
-        //per vedere la stampa corretta
-        //stampo l'intera tabella
-        val data = sqlContext.sql("select * from miaTabella")
-        data.show()*/
+    //TODO: 3.2)contare il numero di commit per actor
+
+
   }
 }
